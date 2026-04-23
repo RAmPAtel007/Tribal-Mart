@@ -3,11 +3,12 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const auth = require('../middleware/auth');
 
 // Register Route
 router.post('/register', async (req, res) => {
     try {
-        const { username, email, password } = req.body;
+        const { username, email, password, phone, address, role } = req.body;
 
         // Check if user exists
         let user = await User.findOne({ email });
@@ -24,11 +25,18 @@ router.post('/register', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
+        // Determine verification status: customers are true, others false initially
+        const isVerified = (role === 'seller' || role === 'agent') ? false : true;
+
         // Create new user
         user = new User({
             username,
             email,
-            password: hashedPassword
+            password: hashedPassword,
+            phone,
+            address,
+            role: role || 'customer',
+            isVerified
         });
 
         await user.save();
@@ -43,10 +51,10 @@ router.post('/register', async (req, res) => {
 // Login Route
 router.post('/login', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { email, password } = req.body;
 
-        // Find user by username
-        const user = await User.findOne({ username });
+        // Find user by email
+        const user = await User.findOne({ email });
         if (!user) {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
@@ -61,7 +69,9 @@ router.post('/login', async (req, res) => {
         const payload = {
             user: {
                 id: user.id,
-                username: user.username
+                username: user.username,
+                role: user.role,
+                isVerified: user.isVerified
             }
         };
 
@@ -77,6 +87,58 @@ router.post('/login', async (req, res) => {
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ message: 'Server error during login' });
+    }
+});
+
+// Apply for Role (Seller/Agent) Route
+router.put('/apply-role', auth, async (req, res) => {
+    try {
+        const { requestedRole, govtIdUrl, category } = req.body;
+
+        if (!['seller', 'agent'].includes(requestedRole)) {
+            return res.status(400).json({ message: 'Invalid role requested' });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            { 
+                role: requestedRole,
+                isVerified: false, // Must be verified by admin
+                verificationDetails: {
+                    govtIdUrl,
+                    category
+                }
+            },
+            { new: true }
+        );
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Generate updated JWT
+        const payload = {
+            user: {
+                id: user.id,
+                username: user.username,
+                role: user.role,
+                isVerified: user.isVerified
+            }
+        };
+
+        jwt.sign(
+            payload,
+            process.env.JWT_SECRET,
+            { expiresIn: '5h' },
+            (err, token) => {
+                if (err) throw err;
+                res.json({ message: `Successfully applied for ${requestedRole} role. Awaiting admin approval.`, token, user: payload.user });
+            }
+        );
+
+    } catch (error) {
+        console.error('Role apply error:', error);
+        res.status(500).json({ message: 'Server error during role application' });
     }
 });
 

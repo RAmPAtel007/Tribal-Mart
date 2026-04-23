@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 
 const Auth = () => {
     const [searchParams] = useSearchParams();
@@ -11,12 +12,16 @@ const Auth = () => {
     const [isLogin, setIsLogin] = useState(initialMode !== 'register');
 
     // Form States
-    const [loginUsername, setLoginUsername] = useState('');
+    const [loginEmail, setLoginEmail] = useState('');
     const [loginPassword, setLoginPassword] = useState('');
+    const [regRole, setRegRole] = useState('customer');
 
     const [regEmail, setRegEmail] = useState('');
     const [regUsername, setRegUsername] = useState('');
     const [password, setPassword] = useState(''); // regPassword
+
+    const [showLoginPassword, setShowLoginPassword] = useState(false);
+    const [showRegPassword, setShowRegPassword] = useState(false);
 
     const [strengthScore, setStrengthScore] = useState(0);
     const [authMessage, setAuthMessage] = useState({ text: '', type: '' });
@@ -86,14 +91,21 @@ const Auth = () => {
             const res = await fetch('http://localhost:5000/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: loginUsername, password: loginPassword })
+                body: JSON.stringify({ email: loginEmail, password: loginPassword })
             });
             const data = await res.json();
 
             if (res.ok) {
                 localStorage.setItem('token', data.token);
-                setAuthMessage({ text: 'Login successful!', type: 'success' });
-                setTimeout(() => navigate('/'), 1500);
+
+                // Determine redirect path based on role
+                let redirectPath = '/dashboard';
+                if (data.user.role === 'admin') redirectPath = '/admin-dashboard';
+                else if (data.user.role === 'seller') redirectPath = '/seller-dashboard';
+                else if (data.user.role === 'agent') redirectPath = '/agent-dashboard';
+
+                setAuthMessage({ text: `Login successful! Welcome ${data.user.role}.`, type: 'success' });
+                setTimeout(() => navigate(redirectPath), 1500);
             } else {
                 setAuthMessage({ text: data.message || 'Login failed', type: 'error' });
             }
@@ -113,7 +125,7 @@ const Auth = () => {
             const res = await fetch('http://localhost:5000/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: regUsername, email: regEmail, password: password })
+                body: JSON.stringify({ username: regUsername, email: regEmail, password: password, role: regRole })
             });
             const data = await res.json();
 
@@ -156,24 +168,33 @@ const Auth = () => {
 
                     <form className="space-y-6" onSubmit={handleLoginSubmit}>
                         <div>
-                            <label className="block text-sm font-medium text-gray-500 mb-2">Username</label>
+                            <label className="block text-sm font-medium text-gray-500 mb-2">Email</label>
                             <input
-                                type="text"
-                                value={loginUsername}
-                                onChange={(e) => setLoginUsername(e.target.value)}
+                                type="email"
+                                value={loginEmail}
+                                onChange={(e) => setLoginEmail(e.target.value)}
                                 required
                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-accent-terracotta focus:ring-1 focus:ring-accent-terracotta transition-all"
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-500 mb-2">Password</label>
-                            <input
-                                type="password"
-                                value={loginPassword}
-                                onChange={(e) => setLoginPassword(e.target.value)}
-                                required
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-accent-terracotta focus:ring-1 focus:ring-accent-terracotta transition-all"
-                            />
+                            <div className="relative">
+                                <input
+                                    type={showLoginPassword ? "text" : "password"}
+                                    value={loginPassword}
+                                    onChange={(e) => setLoginPassword(e.target.value)}
+                                    required
+                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-accent-terracotta focus:ring-1 focus:ring-accent-terracotta transition-all pr-12"
+                                />
+                                <button
+                                    type="button"
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                                >
+                                    {showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                </button>
+                            </div>
                         </div>
                         <div className="text-right">
                             <a href="#" className="text-sm text-accent-terracotta hover:underline font-medium">forgot password?</a>
@@ -227,14 +248,36 @@ const Auth = () => {
                             />
                         </div>
                         <div>
+                            <label className="block text-sm font-medium text-gray-500 mb-2">Role</label>
+                            <select
+                                value={regRole}
+                                onChange={(e) => setRegRole(e.target.value)}
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-accent-ochre focus:ring-1 focus:ring-accent-ochre transition-all bg-white"
+                            >
+                                <option value="customer">Customer</option>
+                                <option value="seller">Seller</option>
+                                <option value="agent">Agent</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div>
                             <label className="block text-sm font-medium text-gray-500 mb-2">Password</label>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={handlePasswordChange}
-                                required
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-accent-ochre focus:ring-1 focus:ring-accent-ochre transition-all"
-                            />
+                            <div className="relative">
+                                <input
+                                    type={showRegPassword ? "text" : "password"}
+                                    value={password}
+                                    onChange={handlePasswordChange}
+                                    required
+                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-accent-ochre focus:ring-1 focus:ring-accent-ochre transition-all pr-12"
+                                />
+                                <button
+                                    type="button"
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                                    onClick={() => setShowRegPassword(!showRegPassword)}
+                                >
+                                    {showRegPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                </button>
+                            </div>
                             {password && (
                                 <div className="mt-2">
                                     <div className="flex justify-between items-center mb-1 text-xs">
