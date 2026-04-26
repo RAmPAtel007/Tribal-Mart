@@ -36,7 +36,7 @@ const CustomerDashboard = () => {
             // Fetch active products
             const prodRes = await fetch('http://localhost:5000/api/products', { headers });
             const prodData = await prodRes.json();
-            if (prodRes.ok) setProducts(prodData);
+            if (prodRes.ok) setProducts(prodData.data || (Array.isArray(prodData) ? prodData : []));
 
             // Fetch user orders if logged in
             if (token) {
